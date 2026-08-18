@@ -25,9 +25,10 @@ export const useGetPtoStaff = (params = { per_page: 1000 }) => {
         queryKey: ["pto-staff", params],
         queryFn: () => staffService.getPtoStaff(axiosInstance, params),
         staleTime: 5 * 60 * 1000,
+        placeholderData: keepPreviousData,
     });
 
-    const staffList = data?.staff_list?.data ?? [];
+    const staffList = data?.staff_list?.data ?? (Array.isArray(data?.staff_list) ? data.staff_list : []);
 
     return { data, staffList, isLoading, isFetching, isError, error };
 };

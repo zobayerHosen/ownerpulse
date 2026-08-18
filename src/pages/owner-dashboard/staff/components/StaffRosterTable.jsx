@@ -76,7 +76,7 @@ const StaffRosterTable = ({
           <div
             ref={listContainerRef}
             onScroll={handleScroll}
-            className="overflow-x-auto max-h-[420px] overflow-y-auto pr-1"
+            className="overflow-x-auto max-h-105 overflow-y-auto pr-1"
           >
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white z-10 shadow-xs">

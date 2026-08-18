@@ -6,8 +6,6 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
   ResponsiveContainer,
   Cell,
 } from "recharts";
@@ -27,7 +25,7 @@ const AttendanceChart = ({ counts = { present: 0, late: 0, callout: 0 } }) => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[180px]">
+        <div className="h-45">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 10, left: -10, bottom: 0 }}>
               <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: "#6B7280", fontSize: 11 }} />

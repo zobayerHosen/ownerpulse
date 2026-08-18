@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, X, Loader2, ChevronDown, Check } from "lucide-react";
+import { Send, X, Loader2, ChevronDown, Check, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAddSubstitution, useGetPtoStaff } from "@/hooks";
 
@@ -10,10 +10,14 @@ const SubstituteForm = ({ onClose }) => {
   const [form, setForm] = useState({
     absentEmployeeId: "",
     absentEmployeeName: "",
+    absentProcareId: "",
     subEmployeeId: "",
     subEmployeeName: "",
+    subProcareId: "",
     date: TODAY_STR,
   });
+  const [absentSearch, setAbsentSearch] = useState("");
+  const [subSearch, setSubSearch] = useState("");
   const [absentDropdownOpen, setAbsentDropdownOpen] = useState(false);
   const [subDropdownOpen, setSubDropdownOpen] = useState(false);
   const [error, setError] = useState("");
@@ -22,7 +26,33 @@ const SubstituteForm = ({ onClose }) => {
   const subDropdownRef = useRef(null);
 
   const { addSubstitution, isPending } = useAddSubstitution();
-  const { staffList, isLoading: staffLoading } = useGetPtoStaff();
+  const activeSearch = (absentDropdownOpen ? absentSearch : subDropdownOpen ? subSearch : "").trim();
+  const { staffList, isLoading: staffLoading, isFetching: staffFetching } = useGetPtoStaff({
+    per_page: 1000,
+    search: activeSearch || undefined,
+  });
+
+  // Filter absent staff list
+  const absentFilteredStaff = useMemo(() => {
+    if (!absentSearch.trim()) return staffList;
+    const term = absentSearch.toLowerCase().trim();
+    return staffList.filter((s) => {
+      const nameMatch = (s.name || "").toLowerCase().includes(term);
+      const procareId = String(s.procare_employee_id || s.employee_id || s.id || "").toLowerCase();
+      return nameMatch || procareId.includes(term);
+    });
+  }, [staffList, absentSearch]);
+
+  // Filter substitute staff list
+  const subFilteredStaff = useMemo(() => {
+    if (!subSearch.trim()) return staffList;
+    const term = subSearch.toLowerCase().trim();
+    return staffList.filter((s) => {
+      const nameMatch = (s.name || "").toLowerCase().includes(term);
+      const procareId = String(s.procare_employee_id || s.employee_id || s.id || "").toLowerCase();
+      return nameMatch || procareId.includes(term);
+    });
+  }, [staffList, subSearch]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -49,12 +79,14 @@ const SubstituteForm = ({ onClose }) => {
   const selectAbsentStaff = (staff) => {
     update("absentEmployeeId", staff.id);
     update("absentEmployeeName", staff.name);
+    update("absentProcareId", staff.procare_employee_id || staff.employee_id || "");
     setAbsentDropdownOpen(false);
   };
 
   const selectSubStaff = (staff) => {
     update("subEmployeeId", staff.id);
     update("subEmployeeName", staff.name);
+    update("subProcareId", staff.procare_employee_id || staff.employee_id || "");
     setSubDropdownOpen(false);
   };
 
@@ -135,8 +167,10 @@ const SubstituteForm = ({ onClose }) => {
                 }}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white flex items-center justify-between"
               >
-                <span className={form.absentEmployeeName ? "text-gray-900" : "text-gray-400"}>
-                  {form.absentEmployeeName || "Select absent staff..."}
+                <span className={form.absentEmployeeName ? "text-gray-900 font-medium" : "text-gray-400"}>
+                  {form.absentEmployeeName
+                    ? `${form.absentEmployeeName}${form.absentProcareId ? ` (ID: ${form.absentProcareId})` : ""}`
+                    : "Select absent staff..."}
                 </span>
                 <ChevronDown
                   size={16}
@@ -152,29 +186,55 @@ const SubstituteForm = ({ onClose }) => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+                    className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
                   >
+                    {/* Search Input Box */}
+                    <div className="p-2 border-b border-gray-100 bg-gray-50/60">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search absent staff by name or Procare ID..."
+                          value={absentSearch}
+                          onChange={(e) => setAbsentSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
                     <div ref={absentDropdownRef} className="max-h-56 overflow-y-auto">
-                      {staffLoading ? (
-                        <div className="px-4 py-3 text-sm text-gray-400 flex items-center gap-2">
-                          <Loader2 size={14} className="animate-spin" /> Loading staff...
+                      {staffLoading || staffFetching ? (
+                        <div className="px-4 py-6 text-sm text-gray-500 flex items-center justify-center gap-2">
+                          <Loader2 size={16} className="animate-spin text-blue-600" />
+                          <span>Loading staff members...</span>
                         </div>
-                      ) : staffList?.length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-gray-400">No staff found.</div>
+                      ) : absentFilteredStaff?.length === 0 ? (
+                        <div className="px-4 py-4 text-sm text-gray-400 text-center">No staff found matching query.</div>
                       ) : (
-                        staffList?.map((s) => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => selectAbsentStaff(s)}
-                            className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 flex items-center justify-between group"
-                          >
-                            <span className="text-gray-800">{s?.name}</span>
-                            {form.absentEmployeeId === s?.id && (
-                              <Check size={14} className="text-blue-600" />
-                            )}
-                          </button>
-                        ))
+                        absentFilteredStaff?.map((s) => {
+                          const procareId = s?.procare_employee_id || s?.employee_id || "";
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => selectAbsentStaff(s)}
+                              className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 flex items-center justify-between group transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-800 font-medium">{s?.name}</span>
+                                {procareId && (
+                                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono">
+                                    ID: {procareId}
+                                  </span>
+                                )}
+                              </div>
+                              {form.absentEmployeeId === s?.id && (
+                                <Check size={14} className="text-blue-600" />
+                              )}
+                            </button>
+                          );
+                        })
                       )}
                     </div>
                   </motion.div>
@@ -197,8 +257,10 @@ const SubstituteForm = ({ onClose }) => {
                 }}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white flex items-center justify-between"
               >
-                <span className={form.subEmployeeName ? "text-gray-900" : "text-gray-400"}>
-                  {form.subEmployeeName || "Select substitute..."}
+                <span className={form.subEmployeeName ? "text-gray-900 font-medium" : "text-gray-400"}>
+                  {form.subEmployeeName
+                    ? `${form.subEmployeeName}${form.subProcareId ? ` (ID: ${form.subProcareId})` : ""}`
+                    : "Select substitute..."}
                 </span>
                 <ChevronDown
                   size={16}
@@ -214,29 +276,55 @@ const SubstituteForm = ({ onClose }) => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+                    className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
                   >
+                    {/* Search Input Box */}
+                    <div className="p-2 border-b border-gray-100 bg-gray-50/60">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search substitute by name or Procare ID..."
+                          value={subSearch}
+                          onChange={(e) => setSubSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
                     <div ref={subDropdownRef} className="max-h-48 overflow-y-auto">
-                      {staffLoading ? (
-                        <div className="px-4 py-3 text-sm text-gray-400 flex items-center gap-2">
-                          <Loader2 size={14} className="animate-spin" /> Loading staff...
+                      {staffLoading || staffFetching ? (
+                        <div className="px-4 py-6 text-sm text-gray-500 flex items-center justify-center gap-2">
+                          <Loader2 size={16} className="animate-spin text-blue-600" />
+                          <span>Loading staff members...</span>
                         </div>
-                      ) : staffList?.length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-gray-400">No staff found.</div>
+                      ) : subFilteredStaff?.length === 0 ? (
+                        <div className="px-4 py-4 text-sm text-gray-400 text-center">No staff found matching query.</div>
                       ) : (
-                        staffList?.map((s) => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => selectSubStaff(s)}
-                            className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 flex items-center justify-between group"
-                          >
-                            <span className="text-gray-800">{s?.name}</span>
-                            {form.subEmployeeId === s?.id && (
-                              <Check size={14} className="text-blue-600" />
-                            )}
-                          </button>
-                        ))
+                        subFilteredStaff?.map((s) => {
+                          const procareId = s?.procare_employee_id || s?.employee_id || "";
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => selectSubStaff(s)}
+                              className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 flex items-center justify-between group transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-800 font-medium">{s?.name}</span>
+                                {procareId && (
+                                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono">
+                                    ID: {procareId}
+                                  </span>
+                                )}
+                              </div>
+                              {form.subEmployeeId === s?.id && (
+                                <Check size={14} className="text-blue-600" />
+                              )}
+                            </button>
+                          );
+                        })
                       )}
                     </div>
                   </motion.div>

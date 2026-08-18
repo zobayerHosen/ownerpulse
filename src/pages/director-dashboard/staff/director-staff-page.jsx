@@ -8,10 +8,9 @@ import PTOHistoryCard from "./components/PTOHistoryCard";
 import SubstituteHistoryCard from "./components/SubstituteHistoryCard";
 import PTOForm from "./components/PTOForm";
 import SubstituteForm from "./components/SubstituteForm";
+import { useGetPtoStaff } from "@/hooks";
 
 const TODAY = new Date("2026-05-11");
-
-const STAFF_LIST = []
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -21,7 +20,6 @@ const itemVariants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } },
 };
-
 
 const INITIAL_PTO_LOG = [
   { id: 1, staffId: 1, dayType: "sick", days: 1, date: "2026-05-08" },
@@ -41,6 +39,8 @@ const DirectorStaffManagement = () => {
   const [ptoLog, setPtoLog] = useState(INITIAL_PTO_LOG);
   const [substitutes, setSubstitutes] = useState(INITIAL_SUBSTITUTES);
   const [showForm, setShowForm] = useState(false);
+
+  const { staffList = [] } = useGetPtoStaff({ per_page: 1000 });
 
   const ptoStats = useMemo(() => ({
     totalDays: ptoLog.reduce((a, r) => a + r.days, 0),
@@ -66,7 +66,7 @@ const DirectorStaffManagement = () => {
       <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Staff Management</h1>
-          <p className="text-sm text-gray-500 mt-1">{STAFF_LIST.length} staff · Track PTO and substitutes</p>
+          <p className="text-sm text-gray-500 mt-1">{staffList.length} staff · Track PTO and substitutes</p>
         </div>
         <Button className="bg-[#1E3A5F] hover:bg-[#15294A] text-white shadow-sm" onClick={() => setShowForm(true)}>
           <Plus size={16} className="mr-2" /> {activeTab === "pto" ? "Log PTO" : "Log Substitute"}
@@ -88,7 +88,7 @@ const DirectorStaffManagement = () => {
           </div>
 
           <motion.div variants={itemVariants}>
-            <PTOHistoryCard ptoLog={ptoLog} staff={STAFF_LIST} />
+            <PTOHistoryCard ptoLog={ptoLog} staff={staffList} />
           </motion.div>
         </>
       )}

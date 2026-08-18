@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, X, Loader2, ChevronDown, Check } from "lucide-react";
+import { Send, X, Loader2, ChevronDown, Check, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAddPto, useGetPtoStaff } from "@/hooks";
 
@@ -10,18 +10,35 @@ const PTOForm = ({ onClose }) => {
   const [form, setForm] = useState({
     staffId: "",
     staffName: "",
+    staffProcareId: "",
     dayType: "sick",
     days: 1,
     date: TODAY_STR,
   });
+  const [searchTerm, setSearchTerm] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [error, setError] = useState("");
   const dropdownRef = useRef(null);
 
   const { addPto, isPending } = useAddPto();
 
-  // ─── Fetch all staff at once ────────────────────────────────────────────────
-  const { staffList, isLoading: staffLoading } = useGetPtoStaff();
+  // ─── Fetch staff with search param ─────────────────────────────────────────
+  const { staffList, isLoading: staffLoading, isFetching: staffFetching } = useGetPtoStaff({
+    per_page: 1000,
+    search: searchTerm.trim() || undefined,
+  });
+
+  // Filter client-side as well for instant feedback
+  const filteredStaff = useMemo(() => {
+    if (!searchTerm.trim()) return staffList;
+    const term = searchTerm.toLowerCase().trim();
+    return staffList.filter((s) => {
+      const nameMatch = (s.name || "").toLowerCase().includes(term);
+      const procareId = String(s.procare_employee_id || s.employee_id || s.id || "").toLowerCase();
+      const idMatch = procareId.includes(term);
+      return nameMatch || idMatch;
+    });
+  }, [staffList, searchTerm]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -39,6 +56,7 @@ const PTOForm = ({ onClose }) => {
   const selectStaff = (staff) => {
     update("staffId", staff.id);
     update("staffName", staff.name);
+    update("staffProcareId", staff.procare_employee_id || staff.employee_id || "");
     setDropdownOpen(false);
   };
 
@@ -101,8 +119,10 @@ const PTOForm = ({ onClose }) => {
                 onClick={() => setDropdownOpen((v) => !v)}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white flex items-center justify-between"
               >
-                <span className={form.staffName ? "text-gray-900" : "text-gray-400"}>
-                  {form.staffName || "Select staff..."}
+                <span className={form.staffName ? "text-gray-900 font-medium" : "text-gray-400"}>
+                  {form.staffName
+                    ? `${form.staffName}${form.staffProcareId ? ` (ID: ${form.staffProcareId})` : ""}`
+                    : "Select staff member..."}
                 </span>
                 <ChevronDown
                   size={16}
@@ -118,37 +138,63 @@ const PTOForm = ({ onClose }) => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+                    className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
                   >
+                    {/* Search Input Box */}
+                    <div className="p-2 border-b border-gray-100 bg-gray-50/60">
+                      <div className="relative">
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Search by name or Procare ID..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
                     <div
                       ref={dropdownRef}
                       className="max-h-48 overflow-y-auto"
                     >
-                      {staffLoading ? (
-                        <div className="px-4 py-3 text-sm text-gray-400 flex items-center gap-2">
-                          <Loader2 size={14} className="animate-spin" /> Loading staff...
+                      {staffLoading || staffFetching ? (
+                        <div className="px-4 py-6 text-sm text-gray-500 flex items-center justify-center gap-2">
+                          <Loader2 size={16} className="animate-spin text-blue-600" />
+                          <span>Loading staff members...</span>
                         </div>
-                      ) : staffList.length === 0 ? (
-                        <div className="px-4 py-3 text-sm text-gray-400">No staff found.</div>
+                      ) : filteredStaff.length === 0 ? (
+                        <div className="px-4 py-4 text-sm text-gray-400 text-center">No staff found matching query.</div>
                       ) : (
-                        staffList?.map((s) => (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => selectStaff(s)}
-                            className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 flex items-center justify-between group"
-                          >
-                            <span className="text-gray-800">{s?.name}</span>
-                            <span className="flex items-center gap-2">
-                              <span className={`text-xs ${s?.pto_remaining <= 2 ? "text-red-500" : "text-gray-400"}`}>
-                                {s?.pto_remaining}d left
+                        filteredStaff.map((s) => {
+                          const procareId = s?.procare_employee_id || s?.employee_id || "";
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => selectStaff(s)}
+                              className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 flex items-center justify-between group transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-800 font-medium">{s?.name}</span>
+                                {procareId && (
+                                  <span className="text-[11px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-mono">
+                                    ID: {procareId}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="flex items-center gap-2">
+                                <span className={`text-xs ${s?.pto_remaining <= 2 ? "text-red-500 font-semibold" : "text-gray-400"}`}>
+                                  {s?.pto_remaining ?? 0}d left
+                                </span>
+                                {form.staffId === s?.id && (
+                                  <Check size={14} className="text-blue-600" />
+                                )}
                               </span>
-                              {form.staffId === s?.id && (
-                                <Check size={14} className="text-blue-600" />
-                              )}
-                            </span>
-                          </button>
-                        ))
+                            </button>
+                          );
+                        })
                       )}
                     </div>
                   </motion.div>
@@ -156,7 +202,7 @@ const PTOForm = ({ onClose }) => {
               </AnimatePresence>
 
               {remaining !== null && (
-                <p className={`text-xs mt-1 ${remaining <= 2 ? "text-red-500" : "text-gray-400"}`}>
+                <p className={`text-xs mt-1 ${remaining <= 2 ? "text-red-500 font-medium" : "text-gray-400"}`}>
                   {remaining} PTO days remaining
                 </p>
               )}

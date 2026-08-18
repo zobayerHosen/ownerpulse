@@ -62,7 +62,7 @@ const PTOSummaryCard = ({ ptoSummary, staffList = [], pagination, onLoadMore, is
           <div
             ref={listContainerRef}
             onScroll={handleScroll}
-            className="max-h-[380px] overflow-y-auto pr-1 space-y-2.5"
+            className="max-h-95 overflow-y-auto pr-1 space-y-2.5"
           >
             {staffList.map((s, idx) => {
               const used = s.used_days ?? s.ptoUsed ?? 0;
